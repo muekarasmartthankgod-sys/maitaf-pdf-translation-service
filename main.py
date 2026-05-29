@@ -2,46 +2,58 @@ import os
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import FileResponse
 import pymupdf
-from openai import OpenAI
+from google import genai
+from google.genai import types
 
 app = FastAPI()
 
-# Point the client directly to Google's official Gemini endpoint wrapper
-client = OpenAI(
-    api_key=os.getenv("GEMINI_API_KEY"),
-    base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
-)
+# Native initialization of the Google GenAI Client
+# It automatically reads the GEMINI_API_KEY environment variable from Render
+client = genai.Client()
 
 def translate_page_blocks(blocks_list: list) -> list:
-    """Sends all text blocks on a page to Gemini in one single lightning-fast batch trip."""
+    """Sends all text blocks on a page to Gemini in one single fast trip using native Google SDK."""
     if not blocks_list:
         return []
     
-    # Pack blocks into a clean structured payload with unique numeric anchors
-    prompt_payload = "You are a customs translator. Translate these blocks into professional trade English. Keep industry codes/Incoterms. Return translations matching the item numbers exactly, separated by '---'. Do not add introduction text.\n\n"
+    # Structure the batch payload with clear identifiers
+    prompt_payload = (
+        "You are an expert international trade and customs compliance translator. "
+        "Translate these isolated text blocks into professional standard technical trade English. "
+        "Maintain legal accuracy for shipping terms, Incoterms, product descriptions, tariff headings, "
+        "and customs acronyms. Return translations matching the item numbers exactly, separated by '---'. "
+        "Do not include any introductions, conclusions, or extra explanations.\n\n"
+    )
+    
     for i, text in enumerate(blocks_list):
         prompt_payload += f"ID {i}: {text.strip()}\n"
         
     try:
-        response = client.chat.completions.create(
-            model="gemini-3.5-flash",
-            messages=[{"role": "user", "content": prompt_payload}],
-            temperature=0.1
+        # Explicit native call to Google Gemini
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt_payload,
+            config=types.GenerateContentConfig(
+                temperature=0.1  # Flat temperature keeps custom terminology strict
+            )
         )
-        raw_result = response.choices[0].message.content.strip()
         
-        # Clean up and split the translations back into a neat list
+        raw_result = response.text.strip()
+        
+        # Parse items back out safely based on the delimiter
         translated_items = [item.replace(f"ID {i}:", "").strip() for i, item in enumerate(raw_result.split("---"))]
         return translated_items
+        
     except Exception as e:
-        print(f"Gemini Speed Batch Error: {e}")
-        return blocks_list  # Return original if the batch call errors out
+        print(f"Native Gemini Execution Error: {e}")
+        return blocks_list  # Safely fall back to original text if something clips
 
 @app.post("/translate-pdf/")
 async def translate_pdf(file: UploadFile = File(...)):
     input_path = f"temp_{file.filename}"
     output_path = f"translated_{file.filename}"
     
+    # Save incoming stream locally
     with open(input_path, "wb") as f:
         f.write(await file.read())
     
@@ -50,27 +62,25 @@ async def translate_pdf(file: UploadFile = File(...)):
     for page in doc:
         text_instances = page.get_text("blocks")
         
-        # Phase 1: Collect valid text values out of coordinates
         blocks_to_translate = []
         valid_instances = []
         
+        # Step 1: Collect structural trade strings, leaving standalone weights/numbers intact
         for instance in text_instances:
             x0, y0, x1, y1, text, block_no, block_type = instance[:7]
-            if text.strip() and not text.replace(".", "", 1).isdigit(): # skip bare numbers
+            if text.strip() and not text.replace(".", "", 1).isdigit():
                 blocks_to_translate.append(text)
                 valid_instances.append(instance)
         
-        # Phase 2: Translate the whole page text in ONE network query
+        # Step 2: Request batch translation via native Google framework
         translated_blocks = translate_page_blocks(blocks_to_translate)
         
-        # Phase 3: Redact and overwrite layouts sequentially
+        # Step 3: Draw white rectangles over old text and overlay the new English terms
         for idx, instance in enumerate(valid_instances):
             x0, y0, x1, y1, text, block_no, block_type = instance[:7]
             
-            # Ensure safe indexing fallback
             t_text = translated_blocks[idx] if idx < len(translated_blocks) else text
             
-            # Overwrite layout text masks cleanly
             page.add_redact_annot(pymupdf.Rect(x0, y0, x1, y1), fill=(1, 1, 1)) 
             page.apply_redactions()
             page.insert_text(pymupdf.Point(x0, y0 + 10), t_text, fontsize=8, color=(0, 0, 0))
