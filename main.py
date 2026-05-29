@@ -29,9 +29,9 @@ def translate_page_blocks(blocks_list: list) -> list:
         prompt_payload += f"ID {i}: {text.strip()}\n"
         
     try:
-        # Route directly to the powerful Llama 3.3 70B production model
+        # Route directly to the universally stable Llama 70B production model
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="llama3-70b-8192",  # Updated for maximum uptime stability
             messages=[{"role": "user", "content": prompt_payload}],
             temperature=0.1
         )
