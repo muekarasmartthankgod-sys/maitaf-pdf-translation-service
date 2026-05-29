@@ -2,42 +2,47 @@ import os
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import FileResponse
 import fitz  # PyMuPDF
-import requests
+from openai import OpenAI
 
 app = FastAPI()
 
-# Example translation function using DeepL API
-def translate_text(text: str, target_lang: str = "EN") -> str:
+# Initialize the OpenAI client (it will automatically look for the OPENAI_API_KEY env variable)
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+def translate_text(text: str, target_lang: str = "English") -> str:
     if not text.strip():
         return text
     
-    DEEPL_API_KEY = os.getenv("DEEPL_API_KEY")
-    url = "https://api-free.deepl.com/v2/translate"
-    
-    payload = {
-        "text": [text],
-        "target_lang": target_lang
-    }
-    headers = {
-        "Authorization": f"DeepL-Auth-Key {DEEPL_API_KEY}"
-    }
-    
     try:
-        response = requests.post(url, json=payload, headers=headers)
-        return response.json()["translations"][0]["text"]
-    except Exception:
-        return text # Fallback to original text if translation fails
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",  # Lightning fast, highly accurate, and incredibly cost-effective
+            messages=[
+                {
+                    "role": "system", 
+                    "content": (
+                        "You are an expert international trade and customs compliance translator. "
+                        "Translate the following text into clear, professional standard technical trade English. "
+                        "Maintain legal accuracy for shipping terms, Incoterms, product descriptions, tariff headings, "
+                        "and customs acronyms. Return ONLY the translated text without commentary."
+                    )
+                },
+                {"role": "user", "content": text}
+            ],
+            temperature=0.1 # Low temperature ensures strict, non-creative translations
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"OpenAI error: {e}")
+        return text # Fallback to original text if API fails
 
 @app.post("/translate-pdf/")
 async def translate_pdf(file: UploadFile = File(...)):
-    # Save uploaded file temporarily
     input_path = f"temp_{file.filename}"
     output_path = f"translated_{file.filename}"
     
     with open(input_path, "wb") as f:
         f.write(await file.read())
     
-    # Process PDF
     doc = fitz.open(input_path)
     
     for page in doc:
@@ -47,14 +52,14 @@ async def translate_pdf(file: UploadFile = File(...)):
             x0, y0, x1, y1, text, block_no, block_type = instance
             
             if text.strip():
-                # 1. Translate the block text
-                translated_text = translate_text(text, target_lang="EN")
+                # 1. Translate via OpenAI
+                translated_text = translate_text(text, target_lang="English")
                 
-                # 2. Redact/Hide original text to prevent overlapping
+                # 2. Hide original text to prevent overlapping text layers
                 page.add_redact_annot(fitz.Rect(x0, y0, x1, y1), fill=(1, 1, 1)) 
                 page.apply_redactions()
                 
-                # 3. Insert translated text at the exact same location
+                # 3. Write translated text at the exact same location
                 page.insert_text(fitz.Point(x0, y0 + 10), translated_text, fontsize=9, color=(0, 0, 0))
                 
     doc.save(output_path)
@@ -63,5 +68,4 @@ async def translate_pdf(file: UploadFile = File(...)):
     # Clean up input file
     os.remove(input_path)
     
-    # Return translated PDF to user
     return FileResponse(output_path, media_type="application/pdf", filename=output_path)
