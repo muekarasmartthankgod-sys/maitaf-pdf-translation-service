@@ -6,9 +6,10 @@ from openai import OpenAI
 
 app = FastAPI()
 
-# Initializing the client wrapper targeting the Groq processing engine
+# Force manual environment fallback checking to secure tokens on Render
+GROQ_TOKEN = os.environ.get("GROQ_API_KEY")
 client = OpenAI(
-    api_key=os.getenv("GROQ_API_KEY"),
+    api_key=GROQ_TOKEN,
     base_url="https://api.groq.com/openai/v1"
 )
 
@@ -29,9 +30,9 @@ def translate_page_blocks(blocks_list: list) -> list:
         prompt_payload += f"ID {i}: {text.strip()}\n"
         
     try:
-        # Route directly to the universally stable Llama 70B production model
+        # Route directly to Groq's active flagship production model ID
         response = client.chat.completions.create(
-            model="llama3-70b-8192",  # Updated for maximum uptime stability
+            model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt_payload}],
             temperature=0.1
         )
