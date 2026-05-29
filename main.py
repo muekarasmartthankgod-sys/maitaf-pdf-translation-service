@@ -1,23 +1,25 @@
 import os
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import FileResponse
-import pymupdf  # Standard import for modern runtimes
+import pymupdf
 from openai import OpenAI
 
 app = FastAPI()
 
-# Secure initialization using environment tokens
-API_KEY = os.getenv("OPENAI_API_KEY")
-client = OpenAI(api_key=API_KEY)
+# Point the client directly to Google's official Gemini endpoint wrapper
+client = OpenAI(
+    api_key=os.getenv("GEMINI_API_KEY"),
+    base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
+)
 
 def translate_text(text: str, target_lang: str = "English") -> str:
     if not text.strip():
         return text
     
     try:
-        # Utilizing modern OpenAI syntax execution mapping
+        # Utilizing the lightning-fast, highly efficient Gemini 3.5 Flash model
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gemini-3.5-flash",
             messages=[
                 {
                     "role": "system", 
@@ -34,7 +36,7 @@ def translate_text(text: str, target_lang: str = "English") -> str:
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
-        print(f"OpenAI Execution Error: {e}")
+        print(f"Gemini API Execution Error: {e}")
         return text
 
 @app.post("/translate-pdf/")
@@ -42,11 +44,9 @@ async def translate_pdf(file: UploadFile = File(...)):
     input_path = f"temp_{file.filename}"
     output_path = f"translated_{file.filename}"
     
-    # Save the incoming stream
     with open(input_path, "wb") as f:
         f.write(await file.read())
     
-    # Open the document with modern pymupdf syntax
     doc = pymupdf.open(input_path)
     
     for page in doc:
