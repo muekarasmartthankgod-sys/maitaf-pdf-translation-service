@@ -104,4 +104,27 @@ else:
                             # Layout-preserved overlay sequence
                             for idx, instance in enumerate(valid_instances):
                                 x0, y0, x1, y1, text, block_no, block_type = instance[:7]
-                                t_text = translated_blocks[idx] if idx < len(translated_blocks)
+                                
+                                # Evaluates safe text extraction with proper structural fallback matching
+                                t_text = translated_blocks[idx] if idx < len(translated_blocks) else text
+                                
+                                # Overwrite old text cleanly using white block masks
+                                page.add_redact_annot(pymupdf.Rect(x0, y0, x1, y1), fill=(1, 1, 1)) 
+                                page.apply_redactions()
+                                page.insert_text(pymupdf.Point(x0, y0 + 10), t_text, fontsize=8, color=(0, 0, 0))
+                    
+                    status_text.empty()
+                    output_bytes = doc.tobytes()
+                    doc.close()
+                    
+                    st.success("✓ Translation Pipeline execution complete!")
+                    
+                    st.download_button(
+                        label="Download Translated English PDF 📥",
+                        data=output_bytes,
+                        file_name=f"translated_{uploaded_file.name}",
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
+                except Exception as ex:
+                    st.error(f"Fatal Engine Runtime Failure: {ex}")
