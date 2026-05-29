@@ -1,7 +1,7 @@
 import os
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import FileResponse
-import pymupdf  # Updated from legacy 'fitz' to match Python 3.14 specifications
+import pymupdf  # Standard import for modern runtimes
 from openai import OpenAI
 
 app = FastAPI()
@@ -54,7 +54,7 @@ async def translate_pdf(file: UploadFile = File(...)):
         
         for instance in text_instances:
             # Unpack spatial coordinate markers safely
-            x0, y0, x1, y1, text, block_no, block_type = instance
+            x0, y0, x1, y1, text, block_no, block_type = instance[:7]
             
             if text.strip():
                 translated_text = translate_text(text, target_lang="English")
