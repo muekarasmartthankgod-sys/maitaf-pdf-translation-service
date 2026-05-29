@@ -6,7 +6,7 @@ from openai import OpenAI
 
 app = FastAPI()
 
-# Force manual environment fallback checking to secure tokens on Render
+# Manual secure token lookup targeting Render container properties
 GROQ_TOKEN = os.environ.get("GROQ_API_KEY")
 client = OpenAI(
     api_key=GROQ_TOKEN,
@@ -14,7 +14,7 @@ client = OpenAI(
 )
 
 def translate_page_blocks(blocks_list: list) -> list:
-    """Sends all text blocks on a page to Groq in a single fast batch trip."""
+    """Sends all text blocks on a page to Groq in a single fast, low-token batch trip."""
     if not blocks_list:
         return []
     
@@ -30,9 +30,9 @@ def translate_page_blocks(blocks_list: list) -> list:
         prompt_payload += f"ID {i}: {text.strip()}\n"
         
     try:
-        # Route directly to Groq's active flagship production model ID
+        # Utilizing the lightning-fast, highly permissive 8B model to eliminate 429 rate limit triggers
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="llama-3.1-8b-instant",
             messages=[{"role": "user", "content": prompt_payload}],
             temperature=0.1
         )
@@ -41,8 +41,8 @@ def translate_page_blocks(blocks_list: list) -> list:
         translated_items = [item.replace(f"ID {i}:", "").strip() for i, item in enumerate(raw_result.split("---"))]
         return translated_items
     except Exception as e:
-        print(f"Llama Groq Execution Error: {e}")
-        return blocks_list
+        print(f"Llama Groq Operational Error: {e}")
+        return blocks_list  # Safe architectural fallback: retain original text string if API stumbles
 
 @app.post("/translate-pdf/")
 async def translate_pdf(file: UploadFile = File(...)):
