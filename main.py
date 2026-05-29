@@ -7,9 +7,9 @@ from google.genai import types
 
 app = FastAPI()
 
-# Native initialization of the Google GenAI Client
-# It automatically reads the GEMINI_API_KEY environment variable from Render
-client = genai.Client()
+# Force-injecting the key value explicitly to eliminate runtime connection bugs
+API_TOKEN = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+client = genai.Client(api_key=API_TOKEN)
 
 def translate_page_blocks(blocks_list: list) -> list:
     """Sends all text blocks on a page to Gemini in one single fast trip using native Google SDK."""
@@ -18,10 +18,10 @@ def translate_page_blocks(blocks_list: list) -> list:
     
     # Structure the batch payload with clear identifiers
     prompt_payload = (
-        "You are an expert international trade and customs compliance translator. "
-        "Translate these isolated text blocks into professional standard technical trade English. "
+        "You are an expert international trade and customs compliance translator.\n"
+        "Translate these isolated text blocks into professional standard technical trade English.\n"
         "Maintain legal accuracy for shipping terms, Incoterms, product descriptions, tariff headings, "
-        "and customs acronyms. Return translations matching the item numbers exactly, separated by '---'. "
+        "and customs acronyms. Return translations matching the item numbers exactly, separated by '---'.\n"
         "Do not include any introductions, conclusions, or extra explanations.\n\n"
     )
     
@@ -29,12 +29,12 @@ def translate_page_blocks(blocks_list: list) -> list:
         prompt_payload += f"ID {i}: {text.strip()}\n"
         
     try:
-        # Explicit native call to Google Gemini
+        # Explicit native call to Google Gemini using lightning-fast gemini-2.5-flash
         response = client.models.generate_content(
             model="gemini-2.5-flash",
             contents=prompt_payload,
             config=types.GenerateContentConfig(
-                temperature=0.1  # Flat temperature keeps custom terminology strict
+                temperature=0.1  # Low temperature keeps custom terminology strict and non-creative
             )
         )
         
