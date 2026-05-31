@@ -1,4 +1,5 @@
 import os
+import json
 import streamlit as st
 import pymupdf
 from openai import OpenAI
@@ -6,7 +7,7 @@ from openai import OpenAI
 # Page configurations for a professional, clean user layout
 st.set_page_config(page_title="MAITAF Customs AI Lab", layout="centered")
 st.title("📄 Customs PDF Translator Lab")
-st.subheader("Production Node via Groq (Llama 3.1 High-Permissive)")
+st.subheader("Production Node via Groq (JSON Stable Architecture)")
 
 # --- TESTING UTILITY: AUTO-GENERATE FRENCH INVOICE ON THE FLY ---
 def make_sample_pdf():
@@ -89,34 +90,38 @@ else:
         if not blocks_list:
             return []
         
+        input_manifest = {f"block_{i}": text.strip() for i, text in enumerate(blocks_list)}
+        
         prompt_payload = (
-            "You are an expert multilingual international trade, logistics, and customs compliance translator.\n"
-            "Your task is to translate the provided text blocks cleanly while strictly maintaining legal and technical accuracy.\n\n"
-            "DYNAMIC ROUTING RULES:\n"
-            "1. If the text block is in a foreign language (e.g., French, Mandarin, Spanish, German, etc.), translate it into professional standard technical trade English.\n"
-            "2. If the text block is ALREADY in English, translate it into the corresponding target foreign trade language required for the customs zone.\n"
-            "3. Preserve all technical acronyms, HS codes, Incoterms (CIP, FOB, EXW), and numbers exactly.\n\n"
-            "Maintain legal accuracy for shipping terms, product descriptions, tariff headings, and logistics metrics.\n"
-            "Return translations matching the item IDs exactly, separated by '---'.\n"
-            "Do not include any introductions, conclusions, or extra explanations.\n\n"
+            "You are an expert multilingual international trade, logistics, and customs compliance translation engine.\n"
+            "Your sole task is to translate the text values in this JSON object while maintaining strict dictionary structures.\n\n"
+            "TRANSLATION MATRIX RULES:\n"
+            "1. If a value is in a foreign language (French, Spanish, Mandarin, etc.), translate it to technical trade English.\n"
+            "2. If a value is ALREADY in English, translate it into professional standard French (or the designated customs zone language).\n"
+            "3. Maintain all numeric references, HS codes, and Incoterms (FOB, CIP, CIF) exactly.\n"
+            "4. DO NOT alter raw numeric values or standalone digits.\n\n"
+            "CRITICAL: Return ONLY a valid JSON object matching the exact keys provided. No introductory text, no explanations.\n"
+            f"Input Target Objective: {json.dumps(input_manifest, ensure_ascii=False)}"
         )
         
-        for i, text in enumerate(blocks_list):
-            prompt_payload += f"ID {i}: {text.strip()}\n"
-            
         try:
             response = client.chat.completions.create(
                 model="llama-3.1-8b-instant",
                 messages=[{"role": "user", "content": prompt_payload}],
-                temperature=0.1
+                temperature=0.0,
+                response_format={"type": "json_object"}
             )
-            raw_result = response.choices[0].message.content.strip()
+            parsed_response = json.loads(response.choices[0].message.content.strip())
             
-            translated_items = [item.replace(f"ID {i}:", "").strip() for i, item in enumerate(raw_result.split("---"))]
-            return translated_items
+            reconstructed_translations = []
+            for i in range(len(blocks_list)):
+                translated_value = parsed_response.get(f"block_{i}", blocks_list[i])
+                reconstructed_translations.append(translated_value)
+                
+            return reconstructed_translations
         except Exception as e:
             st.error(f"Groq Cloud Engine Error: {e}")
-            return []
+            return blocks_list
 
     # UI Core File Drop Component Block
     uploaded_file = st.file_uploader("Upload a foreign Customs Document, Invoice or Manifest (PDF)", type=["pdf"])
