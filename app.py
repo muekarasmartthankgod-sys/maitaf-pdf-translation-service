@@ -2,13 +2,13 @@ import os
 import json
 import streamlit as st
 import pymupdf
+import pdfplumber
 from openai import OpenAI
 
 st.set_page_config(page_title="MAITAF Customs AI Lab", layout="centered")
 st.title("📄 Customs PDF Translator Lab")
-st.subheader("High-Fidelity Grid Alignment Translation Node")
+st.subheader("High-Fidelity Table Extraction Node")
 
-# --- UI CONTROLS SELECTION AT TOP ---
 st.markdown("### 🌐 Step 1: Configure Your Trade Corridor")
 col1, col2 = st.columns(2)
 
@@ -19,7 +19,6 @@ with col1:
 with col2:
     target_lang = st.selectbox("Translate To (Target Destination) :", supported_languages)
 
-# --- CREDENTIAL SECURE VALIDATION LAYER ---
 api_key = st.secrets.get("GROQ_API_KEY") or os.environ.get("GROQ_API_KEY")
 if api_key:
     api_key = api_key.strip().strip('"').strip("'")
@@ -29,19 +28,19 @@ if not api_key:
 else:
     client = OpenAI(api_key=api_key, base_url="https://api.groq.com/openai/v1")
 
-    def translate_structured_payload(text_lines_dict: dict, src: str, tgt: str) -> dict:
-        if not text_lines_dict:
+    def translate_payload_dictionary(payload: dict, src: str, tgt: str) -> dict:
+        if not payload:
             return {}
         
         prompt_payload = (
             f"You are an expert multilingual international trade, logistics, and customs compliance translation engine.\n"
-            f"Your task is to translate the values inside this JSON object from {src} into {tgt}.\n\n"
-            "STRICT COMPLIANCE DIRECTIVES:\n"
-            f"1. Translate all descriptive phrases, table headers, and legal disclaimers accurately into {tgt}.\n"
-            "2. Keep all numbers, internal codes, IDs, quantities, prices, dates, bank IBANs, and currency symbols EXACTLY as they are.\n"
-            "3. Preserve all standard trade abbreviations (HS Codes, Incoterms, VAT, TTC, HT).\n"
-            "4. Return ONLY a valid JSON object matching the input keys perfectly. Do not add introductory or explanatory text.\n\n"
-            f"Target Objective JSON: {json.dumps(text_lines_dict, ensure_ascii=False)}"
+            f"Translate the text values inside this JSON object from {src} into {tgt}.\n\n"
+            "STRICT MANDATES:\n"
+            f"1. Translate all industry descriptions, legal disclaimers, and headers into {tgt}.\n"
+            "2. Keep all numbers, metrics, quantities, prices, dates, currency symbols, and bank codes EXACTLY as they are.\n"
+            "3. Maintain standard logistics shorthand (such as HS Codes, Incoterms).\n"
+            "4. Return ONLY a valid JSON object matching the exact input keys perfectly.\n\n"
+            f"Target Objective JSON: {json.dumps(payload, ensure_ascii=False)}"
         )
         
         try:
@@ -54,78 +53,87 @@ else:
             return json.loads(response.choices[0].message.content.strip())
         except Exception as e:
             st.error(f"Groq API Processing Failure: {e}")
-            return text_lines_dict
+            return payload
 
     st.markdown("### 📁 Step 2: Upload Trade Documentation")
     uploaded_file = st.file_uploader("Drop invoice, packing list, or manifest here", type=["pdf"])
 
     if uploaded_file is not None:
-        if st.button("Run High-Fidelity Grid Translation ➔", use_container_width=True):
-            with st.spinner("Processing document grid alignment layers..."):
+        if st.button("Run High-Fidelity Table Grid Translation ➔", use_container_width=True):
+            with st.spinner("Processing structural table cells..."):
                 try:
                     input_bytes = uploaded_file.read()
-                    doc = pymupdf.open(stream=input_bytes, filetype="pdf")
+                    pymupdf_doc = pymupdf.open(stream=input_bytes, filetype="pdf")
                     
-                    for page in doc:
-                        words = page.get_text("words")
-                        
-                        # Sort words vertically into precise rows
-                        lines_map = {}
-                        for w in words:
-                            x0, y0, x1, y1, text, block_no, line_no, word_no = w
-                            line_key = int(y1)
+                    with pdfplumber.open(stream=input_bytes) as plumber_doc:
+                        for page_idx, plumber_page in enumerate(plumber_doc):
+                            pymupdf_page = pymupdf_doc[page_idx]
                             
-                            found_key = None
-                            for existing_key in lines_map.keys():
-                                if abs(existing_key - line_key) <= 3:
-                                    found_key = existing_key
-                                    break
-                                    
-                            if found_key is not None:
-                                lines_map[found_key].append(w)
-                            else:
-                                lines_map[line_key] = [w]
-                        
-                        # Sort words horizontally within each row
-                        sorted_lines_payload = {}
-                        line_index = 0
-                        for k in sorted(lines_map.keys()):
-                            row_words = sorted(lines_map[k], key=lambda x: x[0])
-                            full_line_string = " ".join([word[4] for word in row_words])
+                            tables = plumber_page.find_tables()
+                            table_areas = []
+                            translation_manifest = {}
+                            element_index = 0
                             
-                            if full_line_string.strip():
-                                min_x = min([word[0] for word in row_words])
-                                max_x = max([word[2] for word in row_words])
-                                min_y = min([word[1] for word in row_words])
-                                max_y = max([word[3] for word in row_words])
-                                
-                                sorted_lines_payload[f"line_{line_index}"] = {
-                                    "text": full_line_string,
-                                    "coords": (min_x, min_y, max_x, max_y)
-                                }
-                                line_index += 1
-                        
-                        # Translate batch map payload
-                        translation_input = {key: val["text"] for key, val in sorted_lines_payload.items()}
-                        translated_output = translate_structured_payload(translation_input, source_lang, target_lang)
-                        
-                        # Redact and re-write high precision rows
-                        for key, val in sorted_lines_payload.items():
-                            x0, y0, x1, y1 = val["coords"]
-                            t_text = translated_output.get(key, val["text"])
+                            for table in tables:
+                                table_areas.append(table.bbox)
+                                table_data = table.extract()
+                                for row in table_data:
+                                    for cell_text in row:
+                                        if cell_text and cell_text.strip():
+                                            if not cell_text.strip().replace(",", "", 1).replace(".", "", 1).replace("€", "").strip().isdigit():
+                                                key = f"table_{element_index}"
+                                                translation_manifest[key] = cell_text.strip()
+                                                element_index += 1
                             
-                            page.add_redact_annot(pymupdf.Rect(x0 - 2, y0 - 2, x1 + 2, y1 + 2), fill=(1, 1, 1))
-                            page.apply_redactions()
+                            blocks = pymupdf_page.get_text("blocks")
+                            loose_blocks = []
+                            for b in blocks:
+                                bx0, by0, bx1, by1, b_text, b_no, b_type = b[:7]
+                                if b_text.strip():
+                                    in_table = False
+                                    for t_bbox in table_areas:
+                                        tx0, ty0, tx1, ty1 = t_bbox
+                                        if not (bx1 < tx0 or bx0 > tx1 or by1 < ty0 or by0 > ty1):
+                                            in_table = True
+                                            break
+                                    if not in_table and not b_text.strip().replace(".", "", 1).isdigit():
+                                        key = f"loose_{element_index}"
+                                        translation_manifest[key] = b_text.strip()
+                                        loose_blocks.append((key, b))
+                                        element_index += 1
                             
-                            page.insert_text(pymupdf.Point(x0, y1), t_text, fontsize=8, fontname="helv", color=(0, 0, 0))
+                            translated_data = translate_payload_dictionary(translation_manifest, source_lang, target_lang)
                             
-                    output_bytes = doc.tobytes()
-                    doc.close()
-                    st.success("✓ Translation engine grid reconstruction complete!")
+                            for key, b_info in loose_blocks:
+                                bx0, by0, bx1, by1, b_text, b_no, b_type = b_info[:7]
+                                t_text = translated_data.get(key, b_text)
+                                pymupdf_page.add_redact_annot(pymupdf.Rect(bx0, by0, bx1, by1), fill=(1, 1, 1))
+                                pymupdf_page.apply_redactions()
+                                pymupdf_page.insert_textbox(pymupdf.Rect(bx0, by0, bx1, by1 + 10), t_text, fontsize=8, fontname="helv", color=(0, 0, 0))
+                            
+                            cell_element_idx = 0
+                            for table in tables:
+                                table_data = table.extract()
+                                for row_idx, row in enumerate(table_data):
+                                    for col_idx, cell_text in enumerate(row):
+                                        if cell_text and cell_text.strip():
+                                            key = f"table_{cell_element_idx}"
+                                            t_text = translated_data.get(key, cell_text.strip()) if key in translation_manifest else cell_text
+                                            cell_obj = table.cells[row_idx][col_idx]
+                                            if cell_obj:
+                                                cx0, cy0, cx1, cy1 = cell_obj
+                                                pymupdf_page.add_redact_annot(pymupdf.Rect(cx0 + 2, cy0 + 2, cx1 - 2, cy1 - 2), fill=(1, 1, 1))
+                                                pymupdf_page.apply_redactions()
+                                                pymupdf_page.insert_textbox(pymupdf.Rect(cx0 + 3, cy0 + 3, cx1 - 3, cy1), t_text, fontsize=7.5, fontname="helv", color=(0, 0, 0))
+                                            cell_element_idx += 1
+                                            
+                    output_bytes = pymupdf_doc.tobytes()
+                    pymupdf_doc.close()
+                    st.success("✓ Table structure processing complete!")
                     st.download_button(
                         label="Download Perfect Aligned PDF 📥",
                         data=output_bytes,
-                        file_name=f"fixed_grid_{target_lang}_{uploaded_file.name}",
+                        file_name=f"grid_fixed_{uploaded_file.name}",
                         mime="application/pdf",
                         use_container_width=True
                     )
