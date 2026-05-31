@@ -4,61 +4,45 @@ import streamlit as st
 import pymupdf
 from openai import OpenAI
 
-# Page configurations for a professional, clean user layout
 st.set_page_config(page_title="MAITAF Customs AI Lab", layout="centered")
 st.title("📄 Customs PDF Translator Lab")
-st.subheader("Production Node via Groq (JSON Stable Architecture)")
+st.subheader("Targeted Routing Architecture (JSON Stable)")
 
-# --- TESTING UTILITY: AUTO-GENERATE FRENCH INVOICE ON THE FLY ---
+# --- STREAMLIT UI LANGUAGE SELECTORS ---
+st.markdown("### 🌐 Route Your Trade Corridor")
+col1, col2 = st.columns(2)
+
+with col1:
+    source_lang = st.selectbox(
+        "Translate From (Source):",
+        ["Auto-Detect", "French", "English", "Spanish", "Mandarin Chinese", "German", "Arabic", "Portuguese", "Japanese", "Hindi", "Italian", "Dutch", "Vietnamese", "Polish"]
+    )
+
+with col2:
+    target_lang = st.selectbox(
+        "Translate To (Target):",
+        ["English", "French", "Spanish", "Mandarin Chinese", "German", "Arabic", "Portuguese", "Japanese", "Hindi", "Italian", "Dutch", "Vietnamese", "Polish"]
+    )
+
+# --- TESTING UTILITY: AUTO-GENENERATOR ---
 def make_sample_pdf():
-    """Generates a clean French Commercial Invoice layout programmatically using PyMuPDF."""
     doc = pymupdf.open()
     page = doc.new_page(width=612, height=792)
-    
-    # Header Elements
     page.insert_text((40, 50), "FACTURE COMMERCIALE", fontsize=22, fontname="helv-bold", color=(0.06, 0.09, 0.16))
-    
-    # Address Headers Matrix
     page.insert_text((40, 95), "ÉMETTEUR (Vendeur) :", fontsize=10, fontname="helv-bold", color=(0.12, 0.16, 0.23))
-    page.insert_text((40, 110), "Logistique Transatlantique SAS\n12 Rue de l'Arsenal, 75004 Paris, France\nN° TVA : FR 89 123 456 789\nEORI : FR123456789000", fontsize=9, fontname="helv", color=(0.2, 0.25, 0.33))
-    
+    page.insert_text((40, 110), "Logistique Transatlantique SAS\n12 Rue de l'Arsenal, 75004 Paris, France", fontsize=9, fontname="helv", color=(0.2, 0.25, 0.33))
     page.insert_text((320, 95), "DESTINATAIRE (Acheteur) :", fontsize=10, fontname="helv-bold", color=(0.12, 0.16, 0.23))
-    page.insert_text((320, 110), "MAITAF Trade Compliance Ltd\n85 Great Portland Street, London, W1W 7LT, UK\nGB EORI : GB987654321000", fontsize=9, fontname="helv", color=(0.2, 0.25, 0.33))
-    
-    # Metadata Block
+    page.insert_text((320, 110), "MAITAF Trade Compliance Ltd\n85 Great Portland Street, London, UK", fontsize=9, fontname="helv", color=(0.2, 0.25, 0.33))
     page.insert_text((40, 185), "Numéro de Facture :  FC-2026-0599", fontsize=9, fontname="helv-bold", color=(0.12, 0.16, 0.23))
-    page.insert_text((40, 200), "Date d'Émission :     31 Mai 2026", fontsize=9, fontname="helv-bold", color=(0.12, 0.16, 0.23))
-    page.insert_text((40, 215), "Conditions :               CIP London Port (Incoterms 2020)", fontsize=9, fontname="helv-bold", color=(0.12, 0.16, 0.23))
-    page.insert_text((40, 230), "Devise :                     EUR (€)", fontsize=9, fontname="helv-bold", color=(0.12, 0.16, 0.23))
-    
-    # Line Items Table Setup
-    page.draw_rect(pymupdf.Rect(40, 255, 572, 272), color=(0.95, 0.96, 0.98), fill=(0.95, 0.96, 0.98))
-    page.insert_text((45, 267), "Poste   Code SH      Désignation des Marchandises                                Qté      Total HT", fontsize=9, fontname="helv-bold", color=(0.06, 0.09, 0.16))
-    
-    page.insert_text((45, 290), "01         8471.30      Ordinateurs portables professionnels (MAITAF Node X)   15       12 750,00 €", fontsize=9, fontname="helv", color=(0.2, 0.25, 0.33))
-    page.insert_text((45, 310), "02         8504.40      Convertisseurs électriques statiques (Alimentation)       30         1 350,00 €", fontsize=9, fontname="helv", color=(0.2, 0.25, 0.33))
-    page.insert_text((45, 330), "03         8544.42      Câbles de connexion avec pièces de fixation                   50            625,00 €", fontsize=9, fontname="helv", color=(0.2, 0.25, 0.33))
-    
-    # Totals Layer
-    page.draw_line(pymupdf.Point(40, 350), pymupdf.Point(572, 350), color=(0.8, 0.83, 0.88), width=1)
-    page.insert_text((380, 365), "Montant Total HT :", fontsize=9, fontname="helv-bold", color=(0.12, 0.16, 0.23))
-    page.insert_text((490, 365), "14 725,00 €", fontsize=9, fontname="helv", color=(0.2, 0.25, 0.33))
-    page.insert_text((380, 380), "Net à Payer :", fontsize=10, fontname="helv-bold", color=(0.06, 0.09, 0.16))
-    page.insert_text((490, 380), "14 725,00 €", fontsize=10, fontname="helv-bold", color=(0.06, 0.09, 0.16))
-    
-    # Declarations Footer
-    page.insert_text((40, 420), "Spécifications d'Expédition", fontsize=10, fontname="helv-bold", color=(0.12, 0.16, 0.23))
-    page.insert_text((40, 435), "• Nombre total de colis : 2 Palettes Filmées\n• Poids Net Total : 180 kg   |   Poids Brut Total : 215 kg", fontsize=9, fontname="helv", color=(0.2, 0.25, 0.33))
-    page.insert_text((40, 480), "Déclaration en Douane", fontsize=10, fontname="helv-bold", color=(0.12, 0.16, 0.23))
-    page.insert_text((40, 495), "L'exportateur des produits couverts par le présent document déclare que, sauf indication\nclaire du contraire, ces produits ont l'origine préférentielle Union Européenne (FR).", fontsize=9, fontname="helv-ital", color=(0.3, 0.35, 0.43))
-    
+    page.draw_rect(pymupdf.Rect(40, 215, 572, 232), color=(0.95, 0.96, 0.98), fill=(0.95, 0.96, 0.98))
+    page.insert_text((45, 227), "Poste   Code SH      Désignation des Marchandises                                Qté      Total HT", fontsize=9, fontname="helv-bold", color=(0.06, 0.09, 0.16))
+    page.insert_text((45, 250), "01         8471.30      Ordinateurs portables professionnels (MAITAF Node X)   15       12 750,00 €", fontsize=9, fontname="helv", color=(0.2, 0.25, 0.33))
+    page.insert_text((380, 290), "Net à Payer :       12 750,00 €", fontsize=10, fontname="helv-bold", color=(0.06, 0.09, 0.16))
     pdf_bytes = doc.tobytes()
     doc.close()
     return pdf_bytes
 
-# Render testing layout utilities inside sidebar
 st.sidebar.header("Testing Tools Workspace")
-st.sidebar.markdown("Need a fast multi-block document to verify your Groq translation loops?")
 st.sidebar.download_button(
     label="Download Sample French Invoice 📄",
     data=make_sample_pdf(),
@@ -67,41 +51,32 @@ st.sidebar.download_button(
     use_container_width=True
 )
 
-# --- BULLETPROOF API KEY LOOKUP STRATEGY ---
-api_key = None
-
-if "GROQ_API_KEY" in st.secrets:
-    api_key = st.secrets["GROQ_API_KEY"]
-elif os.environ.get("GROQ_API_KEY"):
-    api_key = os.environ.get("GROQ_API_KEY")
-
+# --- SECURE CREDENTIAL ROUTING LAYER ---
+api_key = st.secrets.get("GROQ_API_KEY") or os.environ.get("GROQ_API_KEY")
 if api_key:
     api_key = api_key.strip().strip('"').strip("'")
 
 if not api_key:
     st.error("❌ GROQ_API_KEY is missing in your App Secrets!")
 else:
-    client = OpenAI(
-        api_key=api_key,
-        base_url="https://api.groq.com/openai/v1"
-    )
+    client = OpenAI(api_key=api_key, base_url="https://api.groq.com/openai/v1")
 
-    def translate_page_blocks(blocks_list: list) -> list:
+    def translate_page_blocks(blocks_list: list, src: str, tgt: str) -> list:
         if not blocks_list:
             return []
         
         input_manifest = {f"block_{i}": text.strip() for i, text in enumerate(blocks_list)}
         
+        # Enforcing precise target parameter routing instructions
         prompt_payload = (
-            "You are an expert multilingual international trade, logistics, and customs compliance translation engine.\n"
-            "Your sole task is to translate the text values in this JSON object while maintaining strict dictionary structures.\n\n"
-            "TRANSLATION MATRIX RULES:\n"
-            "1. If a value is in a foreign language (French, Spanish, Mandarin, etc.), translate it to technical trade English.\n"
-            "2. If a value is ALREADY in English, translate it into professional standard French (or the designated customs zone language).\n"
-            "3. Maintain all numeric references, HS codes, and Incoterms (FOB, CIP, CIF) exactly.\n"
-            "4. DO NOT alter raw numeric values or standalone digits.\n\n"
-            "CRITICAL: Return ONLY a valid JSON object matching the exact keys provided. No introductory text, no explanations.\n"
-            f"Input Target Objective: {json.dumps(input_manifest, ensure_ascii=False)}"
+            f"You are an expert multilingual international trade, logistics, and customs compliance translator.\n"
+            f"Your strict operational task is to translate the values in this JSON object FROM {src} TO {tgt}.\n\n"
+            "CRITICAL TRANSLATION MANDATES:\n"
+            f"1. Translate all descriptive and legal industry vocabulary precisely into {tgt}.\n"
+            "2. Keep all numbers, metrics, quantities, prices, and symbols EXACTLY as they are.\n"
+            "3. Retain standard global logistics abbreviations (such as HS Codes, Incoterms like FOB, CIF, CIP) without alteration.\n"
+            "4. Do not drop keys. Maintain the exact JSON layout configuration tracking tree structural paths.\n\n"
+            f"Input Target Objective Map: {json.dumps(input_manifest, ensure_ascii=False)}"
         )
         
         try:
@@ -123,20 +98,18 @@ else:
             st.error(f"Groq Cloud Engine Error: {e}")
             return blocks_list
 
-    # UI Core File Drop Component Block
-    uploaded_file = st.file_uploader("Upload a foreign Customs Document, Invoice or Manifest (PDF)", type=["pdf"])
+    uploaded_file = st.file_uploader("Upload a Customs Document, Invoice or Manifest (PDF)", type=["pdf"])
 
     if uploaded_file is not None:
-        if st.button("Run Translation Sequence ➔", use_container_width=True):
-            with st.spinner("Analyzing document structure mapping... Please wait."):
+        if st.button("Run Targeted Translation Sequence ➔", use_container_width=True):
+            with st.spinner("Executing custom linguistic corridor routing..."):
                 try:
                     input_bytes = uploaded_file.read()
                     doc = pymupdf.open(stream=input_bytes, filetype="pdf")
-                    
                     status_text = st.empty()
                     
                     for page_num, page in enumerate(doc):
-                        status_text.text(f"Scanning elements on Page {page_num + 1}...")
+                        status_text.text(f"Processing structural layouts on Page {page_num + 1}...")
                         text_instances = page.get_text("blocks")
                         blocks_to_translate = []
                         valid_instances = []
@@ -148,16 +121,12 @@ else:
                                 valid_instances.append(instance)
                         
                         if blocks_to_translate:
-                            status_text.text(f"Translating Page {page_num + 1} via Groq LPU engine...")
-                            translated_blocks = translate_page_blocks(blocks_to_translate)
+                            # Pass user language selections down into processing loop arrays
+                            translated_blocks = translate_page_blocks(blocks_to_translate, source_lang, target_lang)
                             
                             for idx, instance in enumerate(valid_instances):
                                 x0, y0, x1, y1, text, block_no, block_type = instance[:7]
-                                
-                                if translated_blocks and idx < len(translated_blocks) and translated_blocks[idx].strip():
-                                    t_text = translated_blocks[idx]
-                                else:
-                                    t_text = text
+                                t_text = translated_blocks[idx] if translated_blocks and idx < len(translated_blocks) else text
                                 
                                 page.add_redact_annot(pymupdf.Rect(x0, y0, x1, y1), fill=(1, 1, 1)) 
                                 page.apply_redactions()
@@ -167,12 +136,11 @@ else:
                     output_bytes = doc.tobytes()
                     doc.close()
                     
-                    st.success("✓ Translation Pipeline execution complete!")
-                    
+                    st.success(f"✓ Document routed cleanly from {source_lang} to {target_lang}!")
                     st.download_button(
-                        label="Download Translated English PDF 📥",
+                        label="Download Translated PDF 📥",
                         data=output_bytes,
-                        file_name=f"translated_{uploaded_file.name}",
+                        file_name=f"directed_{target_lang}_{uploaded_file.name}",
                         mime="application/pdf",
                         use_container_width=True
                     )
