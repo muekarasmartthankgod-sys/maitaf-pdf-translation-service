@@ -8,7 +8,6 @@ from openai import OpenAI
 
 app = FastAPI()
 
-# Enable cross-origin resource sharing for your website domain
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -17,7 +16,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- SECURE API KEY ROUTING ---
 GROQ_TOKEN = os.environ.get("GROQ_API_KEY") or os.environ.get("groq_api_key")
 if GROQ_TOKEN:
     GROQ_TOKEN = GROQ_TOKEN.strip().strip('"').strip("'")
@@ -28,7 +26,6 @@ def translate_page_blocks(blocks_list: list, src: str, tgt: str) -> list:
     if not blocks_list:
         return []
     
-    # Map the text fragments to a strict JSON structure
     input_manifest = {f"block_{i}": text.strip() for i, text in enumerate(blocks_list)}
     
     prompt_payload = (
@@ -47,7 +44,7 @@ def translate_page_blocks(blocks_list: list, src: str, tgt: str) -> list:
             model="llama-3.1-8b-instant",
             messages=[{"role": "user", "content": prompt_payload}],
             temperature=0.0,
-            response_format={"type": "json_object"}  # Hard-locks Groq into a clean JSON tree return
+            response_format={"type": "json_object"}
         )
         parsed_response = json.loads(response.choices[0].message.content.strip())
         return [parsed_response.get(f"block_{i}", blocks_list[i]) for i in range(len(blocks_list))]
@@ -77,7 +74,6 @@ async def translate_pdf(
             
             for instance in text_instances:
                 x0, y0, x1, y1, text, block_no, block_type = instance[:7]
-                # Filter out pure numbers to preserve columns from scrambling
                 if text.strip() and not text.replace(".", "", 1).isdigit():
                     blocks_to_translate.append(text)
                     valid_instances.append(instance)
@@ -89,20 +85,16 @@ async def translate_pdf(
                     x0, y0, x1, y1, text, block_no, block_type = instance[:7]
                     t_text = translated_blocks[idx] if translated_blocks and idx < len(translated_blocks) else text
                     
-                    # 1. Redact the old text using a clean white canvas mask
                     rect = pymupdf.Rect(x0, y0, x1, y1)
                     page.add_redact_annot(rect, fill=(1, 1, 1)) 
                     page.apply_redactions()
                     
-                    # 2. DYNAMIC COORDINATE SAFETY ZONE
-                    # If the block starts on the left side of the page (description column),
-                    # cap its width at x=380 so it can never bleed into numbers on the right.
+                    # Capping left-aligned blocks at width 370 to permanently fix overlaps
                     if x0 < 300 and x1 > 400:
-                        render_rect = pymupdf.Rect(x0, y0, 380, y1 + 15)
+                        render_rect = pymupdf.Rect(x0, y0, 370, y1 + 15)
                     else:
                         render_rect = pymupdf.Rect(x0, y0, x1, y1 + 10)
                     
-                    # 3. Draw text with forced text-wrapping boundaries
                     page.insert_textbox(render_rect, t_text, fontsize=8, fontname="helv", color=(0, 0, 0))
                     
         doc.save(output_path)
