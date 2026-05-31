@@ -89,7 +89,7 @@ async def translate_pdf(
                     page.add_redact_annot(rect, fill=(1, 1, 1)) 
                     page.apply_redactions()
                     
-                    # Capping left-aligned blocks at width 370 to permanently fix overlaps
+                    # Capping left-aligned description blocks to avoid hitting right-side price columns
                     if x0 < 300 and x1 > 400:
                         render_rect = pymupdf.Rect(x0, y0, 370, y1 + 15)
                     else:
