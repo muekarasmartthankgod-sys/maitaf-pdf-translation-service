@@ -4,12 +4,13 @@ import streamlit as st
 import pymupdf
 from openai import OpenAI
 
+# Page configurations for a professional, clean user layout
 st.set_page_config(page_title="MAITAF Customs AI Lab", layout="centered")
 st.title("📄 Customs PDF Translator Lab")
-st.subheader("Universal Universal Corridor Routing Gateway")
+st.subheader("Universal Trading Corridor Configuration Gateway")
 
-# --- FRONTEND INTERACTIVE DROPDOWNS ---
-st.markdown("### 🌐 Step 1: Select Your Trade Corridor")
+# --- FIXED: FRONTEND DROPDOWN SELECTION PANEL ALWAYS AT THE TOP ---
+st.markdown("### 🌐 Step 1: Configure Your Trade Corridor")
 col1, col2 = st.columns(2)
 
 supported_languages = [
@@ -63,6 +64,7 @@ else:
             st.error(f"Groq Cloud Engine Error: {e}")
             return blocks_list
 
+    # --- STEP 2 SITS DIRECTLY UNDER THE SELECTION ENGINE ---
     st.markdown("### 📁 Step 2: Upload Trade Documentation")
     uploaded_file = st.file_uploader("Drop invoice, packing list, or manifest here", type=["pdf"])
 
@@ -85,33 +87,4 @@ else:
                                 valid_instances.append(instance)
                         
                         if blocks_to_translate:
-                            translated_blocks = translate_page_blocks(blocks_to_translate, source_lang, target_lang)
-                            
-                            for idx, instance in enumerate(valid_instances):
-                                x0, y0, x1, y1, text, block_no, block_type = instance[:7]
-                                t_text = translated_blocks[idx] if translated_blocks and idx < len(translated_blocks) else text
-                                
-                                rect = pymupdf.Rect(x0, y0, x1, y1)
-                                page.add_redact_annot(rect, fill=(1, 1, 1)) 
-                                page.apply_redactions()
-                                
-                                # Dynamic Box Width Control (Bridges spatial overlaps)
-                                if x0 < 300 and x1 > 400:
-                                    render_rect = pymupdf.Rect(x0, y0, 380, y1 + 15)
-                                else:
-                                    render_rect = pymupdf.Rect(x0, y0, x1, y1 + 10)
-                                
-                                page.insert_textbox(render_rect, t_text, fontsize=8, fontname="helv", color=(0, 0, 0))
-                    
-                    output_bytes = doc.tobytes()
-                    doc.close()
-                    st.success(f"✓ Document rendered successfully from {source_lang} to {target_lang}!")
-                    st.download_button(
-                        label="Download Aligned PDF 📥",
-                        data=output_bytes,
-                        file_name=f"universal_{target_lang}_{uploaded_file.name}",
-                        mime="application/pdf",
-                        use_container_width=True
-                    )
-                except Exception as ex:
-                    st.error(f"Fatal Engine Runtime Failure: {ex}")
+                            translated_blocks = translate_page_blocks
