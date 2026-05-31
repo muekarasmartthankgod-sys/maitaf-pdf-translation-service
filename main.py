@@ -7,7 +7,7 @@ from openai import OpenAI
 
 app = FastAPI()
 
-# Enable cross-origin resource sharing so your website can talk to Render securely
+# Enable cross-origin resource sharing so your website frontend can communicate seamlessly
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -16,12 +16,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- SECURTIY HANDSHAKE BLOCK ---
-# Looks for the correct key name from Render environment configurations
+# --- SECURE CREDENTIAL ROUTING LAYER ---
 GROQ_TOKEN = os.environ.get("GROQ_API_KEY") or os.environ.get("groq_api_key")
 
 if GROQ_TOKEN:
-    # Strip away accidental whitespace characters or quotation marks from copy-paste bugs
+    # Automatically strip out white spaces or accidental quotes from copy-paste glitches
     GROQ_TOKEN = GROQ_TOKEN.strip().strip('"').strip("'")
 
 client = OpenAI(
@@ -30,15 +29,20 @@ client = OpenAI(
 )
 
 def translate_page_blocks(blocks_list: list) -> list:
-    """Sends all text blocks on a page to Groq in a single fast, low-token batch trip."""
+    """Processes textual structures bi-directionally with high-speed LPU pipelines."""
     if not blocks_list:
         return []
     
+    # Bi-directional trade-optimized system instructions
     prompt_payload = (
-        "You are an expert international trade and customs compliance translator.\n"
-        "Translate these isolated text blocks into professional standard technical trade English.\n"
-        "Maintain legal accuracy for shipping terms, Incoterms, product descriptions, tariff headings, "
-        "and customs acronyms. Return translations matching the item numbers exactly, separated by '---'.\n"
+        "You are an expert multilingual international trade, logistics, and customs compliance translator.\n"
+        "Your task is to translate the provided text blocks cleanly while strictly maintaining legal and technical accuracy.\n\n"
+        "DYNAMIC ROUTING RULES:\n"
+        "1. If the text block is in a foreign language (e.g., French, Mandarin, Spanish, German, etc.), translate it into professional standard technical trade English.\n"
+        "2. If the text block is ALREADY in English, translate it into the corresponding target foreign trade language required for the customs zone.\n"
+        "3. Preserve all technical acronyms, HS codes, Incoterms (CIP, FOB, EXW), and numbers exactly.\n\n"
+        "Maintain legal accuracy for shipping terms, product descriptions, tariff headings, and logistics metrics.\n"
+        "Return translations matching the item IDs exactly, separated by '---'.\n"
         "Do not include any introductions, conclusions, or extra explanations.\n\n"
     )
     
@@ -46,7 +50,7 @@ def translate_page_blocks(blocks_list: list) -> list:
         prompt_payload += f"ID {i}: {text.strip()}\n"
         
     try:
-        # Utilizing the highly stable 8B model to eliminate free-tier 429 rate limits
+        # Utilizing Llama-3.1-8b-instant to maximize multi-page token limits safely
         response = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[{"role": "user", "content": prompt_payload}],
@@ -58,7 +62,7 @@ def translate_page_blocks(blocks_list: list) -> list:
         return translated_items
     except Exception as e:
         print(f"Llama Groq Operational Error: {e}")
-        return blocks_list
+        return []
 
 @app.post("/translate-pdf/")
 async def translate_pdf(file: UploadFile = File(...)):
@@ -93,6 +97,7 @@ async def translate_pdf(file: UploadFile = File(...)):
                     else:
                         t_text = text
                     
+                    # Redact old text blocks using clean white visual canvases
                     page.add_redact_annot(pymupdf.Rect(x0, y0, x1, y1), fill=(1, 1, 1)) 
                     page.apply_redactions()
                     page.insert_text(pymupdf.Point(x0, y0 + 10), t_text, fontsize=8, color=(0, 0, 0))
