@@ -29,14 +29,14 @@ def translate_page_blocks(blocks_list: list, src: str, tgt: str) -> list:
     input_manifest = {f"block_{i}": text.strip() for i, text in enumerate(blocks_list)}
     
     prompt_payload = (
-        f"You are an expert multilingual international trade, logistics, and customs compliance translator.\n"
-        f"Your strict operational task is to translate the values in this JSON object FROM {src} TO {tgt}.\n\n"
-        "CRITICAL TRANSLATION MANDATES:\n"
-        f"1. Translate all descriptive and legal industry vocabulary precisely into {tgt}.\n"
+        f"You are an expert multilingual international trade and customs compliance translator.\n"
+        f"Translate the values in this JSON object FROM {src} TO {tgt}.\n\n"
+        "CRITICAL MANDATES:\n"
+        f"1. Translate all industry and legal vocabulary accurately into {tgt}.\n"
         "2. Keep all numbers, metrics, quantities, prices, and symbols EXACTLY as they are.\n"
-        "3. Retain standard global logistics abbreviations (such as HS Codes, Incoterms like FOB, CIF, CIP) without alteration.\n"
-        "4. Do not drop keys. Maintain the exact JSON layout configuration tracking tree structural paths.\n\n"
-        f"Input Target Objective Map: {json.dumps(input_manifest, ensure_ascii=False)}"
+        "3. Retain standard global logistics abbreviations (HS Codes, Incoterms like FOB, CIF, CIP).\n"
+        "4. Do not drop keys. Return ONLY a valid JSON object matching the input structure.\n\n"
+        f"Input Target Map: {json.dumps(input_manifest, ensure_ascii=False)}"
     )
     
     try:
@@ -50,8 +50,7 @@ def translate_page_blocks(blocks_list: list, src: str, tgt: str) -> list:
         
         reconstructed_translations = []
         for i in range(len(blocks_list)):
-            translated_value = parsed_response.get(f"block_{i}", blocks_list[i])
-            reconstructed_translations.append(translated_value)
+            reconstructed_translations.append(parsed_response.get(f"block_{i}", blocks_list[i]))
             
         return reconstructed_translations
     except Exception as e:
@@ -61,8 +60,8 @@ def translate_page_blocks(blocks_list: list, src: str, tgt: str) -> list:
 @app.post("/translate-pdf/")
 async def translate_pdf(
     file: UploadFile = File(...),
-    source_lang: str = Form("Auto-Detect"),  # Accepts form values sent from your web client interface
-    target_lang: str = Form("English")
+    source_lang: str = Form("Auto-Detect"),  # Captured directly from frontend form input dropdown
+    target_lang: str = Form("English")      # Captured directly from frontend form input dropdown
 ):
     input_path = f"temp_{file.filename}"
     output_path = f"translated_{file.filename}"
@@ -91,19 +90,24 @@ async def translate_pdf(
                     x0, y0, x1, y1, text, block_no, block_type = instance[:7]
                     t_text = translated_blocks[idx] if translated_blocks and idx < len(translated_blocks) else text
                     
+                    # 1. Overlay a clean white mask over the exact canvas area bounding box
                     page.add_redact_annot(pymupdf.Rect(x0, y0, x1, y1), fill=(1, 1, 1)) 
                     page.apply_redactions()
-                    page.insert_text(pymupdf.Point(x0, y0 + 10), t_text, fontsize=8, color=(0, 0, 0))
+                    
+                    # 2. Perfect mathematical mid-point alignment equation calculation
+                    font_size = 8
+                    center_y = y0 + ((y1 - y0) / 2) + (font_size / 3)
+                    
+                    # 3. Draw clean, centered, baseline text matching bounds parameters
+                    page.insert_text(pymupdf.Point(x0, center_y), t_text, fontsize=font_size, color=(0, 0, 0))
                     
         doc.save(output_path)
         doc.close()
-        
         return FileResponse(output_path, media_type="application/pdf", filename=output_path)
         
     except Exception as error:
         print(f"Server Runtime Error: {error}")
         return {"error": str(error)}
-        
     finally:
         if os.path.exists(input_path):
             os.remove(input_path)
