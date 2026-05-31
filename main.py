@@ -47,12 +47,7 @@ def translate_page_blocks(blocks_list: list, src: str, tgt: str) -> list:
             response_format={"type": "json_object"}
         )
         parsed_response = json.loads(response.choices[0].message.content.strip())
-        
-        reconstructed_translations = []
-        for i in range(len(blocks_list)):
-            reconstructed_translations.append(parsed_response.get(f"block_{i}", blocks_list[i]))
-            
-        return reconstructed_translations
+        return [parsed_response.get(f"block_{i}", blocks_list[i]) for i in range(len(blocks_list))]
     except Exception as e:
         print(f"Llama Groq Handling Fault: {e}")
         return blocks_list
@@ -60,8 +55,8 @@ def translate_page_blocks(blocks_list: list, src: str, tgt: str) -> list:
 @app.post("/translate-pdf/")
 async def translate_pdf(
     file: UploadFile = File(...),
-    source_lang: str = Form("Auto-Detect"),  # Captured directly from frontend form input dropdown
-    target_lang: str = Form("English")      # Captured directly from frontend form input dropdown
+    source_lang: str = Form("Auto-Detect"),  
+    target_lang: str = Form("English")      
 ):
     input_path = f"temp_{file.filename}"
     output_path = f"translated_{file.filename}"
@@ -90,16 +85,20 @@ async def translate_pdf(
                     x0, y0, x1, y1, text, block_no, block_type = instance[:7]
                     t_text = translated_blocks[idx] if translated_blocks and idx < len(translated_blocks) else text
                     
-                    # 1. Overlay a clean white mask over the exact canvas area bounding box
-                    page.add_redact_annot(pymupdf.Rect(x0, y0, x1, y1), fill=(1, 1, 1)) 
+                    # 1. Overlay a clean white mask over the old text block
+                    rect = pymupdf.Rect(x0, y0, x1, y1)
+                    page.add_redact_annot(rect, fill=(1, 1, 1)) 
                     page.apply_redactions()
                     
-                    # 2. Perfect mathematical mid-point alignment equation calculation
-                    font_size = 8
-                    center_y = y0 + ((y1 - y0) / 2) + (font_size / 3)
+                    # 2. FIXED: Keep text inside its bounds to stop overlapping columns
+                    # If the box is wide and on the left, limit its width to avoid hitting the price column
+                    if x0 < 300 and x1 > 400:
+                        render_rect = pymupdf.Rect(x0, y0, 380, y1 + 15)
+                    else:
+                        render_rect = pymupdf.Rect(x0, y0, x1, y1 + 10)
                     
-                    # 3. Draw clean, centered, baseline text matching bounds parameters
-                    page.insert_text(pymupdf.Point(x0, center_y), t_text, fontsize=font_size, color=(0, 0, 0))
+                    # 3. Use textbox instead of insert_text to force word wrapping
+                    page.insert_textbox(render_rect, t_text, fontsize=8, fontname="helv", color=(0, 0, 0))
                     
         doc.save(output_path)
         doc.close()
