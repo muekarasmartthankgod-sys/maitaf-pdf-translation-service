@@ -6,25 +6,25 @@ from openai import OpenAI
 
 st.set_page_config(page_title="MAITAF Customs AI Lab", layout="centered")
 st.title("📄 Customs PDF Translator Lab")
-st.subheader("Targeted Front-End Alignment Control Node")
+st.subheader("Universal Universal Corridor Routing Gateway")
 
-# --- FRONTEND SELECTION CHANNELS ---
-st.markdown("### 🌐 Step 1: Configure Language Logistics Corridor")
+# --- FRONTEND INTERACTIVE DROPDOWNS ---
+st.markdown("### 🌐 Step 1: Select Your Trade Corridor")
 col1, col2 = st.columns(2)
 
+supported_languages = [
+    "English", "French", "Spanish", "German", "Mandarin Chinese", 
+    "Arabic", "Portuguese", "Italian", "Dutch", "Japanese", 
+    "Hindi", "Russian", "Korean", "Turkish", "Indonesian"
+]
+
 with col1:
-    source_lang = st.selectbox(
-        "Translate From (Source Language) :",
-        ["Auto-Detect", "French", "English", "Spanish", "German", "Mandarin Chinese", "Arabic", "Portuguese", "Italian", "Dutch"]
-    )
+    source_lang = st.selectbox("Translate From (Source Language) :", ["Auto-Detect"] + supported_languages)
 
 with col2:
-    target_lang = st.selectbox(
-        "Translate To (Target Destination) :",
-        ["English", "French", "Spanish", "German", "Mandarin Chinese", "Arabic", "Portuguese", "Italian", "Dutch"]
-    )
+    target_lang = st.selectbox("Translate To (Target Destination) :", supported_languages)
 
-# --- SECURE CREDENTIAL LAYER ---
+# --- SECURE CREDENTIAL ROUTING LAYER ---
 api_key = st.secrets.get("GROQ_API_KEY") or os.environ.get("GROQ_API_KEY")
 if api_key:
     api_key = api_key.strip().strip('"').strip("'")
@@ -43,7 +43,7 @@ else:
             f"You are an expert multilingual international trade and customs compliance translator.\n"
             f"Translate the values in this JSON object FROM {src} TO {tgt}.\n\n"
             "CRITICAL MANDATES:\n"
-            f"1. Translate all industry vocabulary accurately into {tgt}.\n"
+            f"1. Translate all industry and legal vocabulary accurately into {tgt}.\n"
             "2. Keep all numbers, metrics, quantities, prices, and symbols EXACTLY as they are.\n"
             "3. Retain standard global logistics abbreviations (HS Codes, Incoterms).\n"
             "4. Return ONLY a valid JSON object matching the structure.\n\n"
@@ -67,8 +67,8 @@ else:
     uploaded_file = st.file_uploader("Drop invoice, packing list, or manifest here", type=["pdf"])
 
     if uploaded_file is not None:
-        if st.button("Run Targeted Precision Translation ➔", use_container_width=True):
-            with st.spinner("Processing text coordinates with column width boundaries..."):
+        if st.button("Run Universal Precision Translation ➔", use_container_width=True):
+            with st.spinner(f"Routing documentation smoothly from {source_lang} to {target_lang}..."):
                 try:
                     input_bytes = uploaded_file.read()
                     doc = pymupdf.open(stream=input_bytes, filetype="pdf")
@@ -95,7 +95,7 @@ else:
                                 page.add_redact_annot(rect, fill=(1, 1, 1)) 
                                 page.apply_redactions()
                                 
-                                # FIXED: Restrict width boundaries to avoid overlapping table values
+                                # Dynamic Box Width Control (Bridges spatial overlaps)
                                 if x0 < 300 and x1 > 400:
                                     render_rect = pymupdf.Rect(x0, y0, 380, y1 + 15)
                                 else:
@@ -109,7 +109,7 @@ else:
                     st.download_button(
                         label="Download Aligned PDF 📥",
                         data=output_bytes,
-                        file_name=f"aligned_{target_lang}_{uploaded_file.name}",
+                        file_name=f"universal_{target_lang}_{uploaded_file.name}",
                         mime="application/pdf",
                         use_container_width=True
                     )
