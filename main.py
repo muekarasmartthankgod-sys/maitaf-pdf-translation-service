@@ -1,13 +1,29 @@
 import os
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 import pymupdf
 from openai import OpenAI
 
 app = FastAPI()
 
-# Manual secure token lookup targeting Render container properties
-GROQ_TOKEN = os.environ.get("GROQ_API_KEY")
+# Enable cross-origin resource sharing so your website can talk to Render securely
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# --- SECURTIY HANDSHAKE BLOCK ---
+# Looks for the correct key name from Render environment configurations
+GROQ_TOKEN = os.environ.get("GROQ_API_KEY") or os.environ.get("groq_api_key")
+
+if GROQ_TOKEN:
+    # Strip away accidental whitespace characters or quotation marks from copy-paste bugs
+    GROQ_TOKEN = GROQ_TOKEN.strip().strip('"').strip("'")
+
 client = OpenAI(
     api_key=GROQ_TOKEN,
     base_url="https://api.groq.com/openai/v1"
@@ -30,7 +46,7 @@ def translate_page_blocks(blocks_list: list) -> list:
         prompt_payload += f"ID {i}: {text.strip()}\n"
         
     try:
-        # Utilizing the lightning-fast, highly permissive 8B model to eliminate 429 rate limit triggers
+        # Utilizing the highly stable 8B model to eliminate free-tier 429 rate limits
         response = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[{"role": "user", "content": prompt_payload}],
@@ -42,43 +58,54 @@ def translate_page_blocks(blocks_list: list) -> list:
         return translated_items
     except Exception as e:
         print(f"Llama Groq Operational Error: {e}")
-        return blocks_list  # Safe architectural fallback: retain original text string if API stumbles
+        return blocks_list
 
 @app.post("/translate-pdf/")
 async def translate_pdf(file: UploadFile = File(...)):
     input_path = f"temp_{file.filename}"
     output_path = f"translated_{file.filename}"
     
-    with open(input_path, "wb") as f:
-        f.write(await file.read())
-    
-    doc = pymupdf.open(input_path)
-    
-    for page in doc:
-        text_instances = page.get_text("blocks")
-        blocks_to_translate = []
-        valid_instances = []
+    try:
+        with open(input_path, "wb") as f:
+            f.write(await file.read())
         
-        for instance in text_instances:
-            x0, y0, x1, y1, text, block_no, block_type = instance[:7]
-            if text.strip() and not text.replace(".", "", 1).isdigit():
-                blocks_to_translate.append(text)
-                valid_instances.append(instance)
+        doc = pymupdf.open(input_path)
         
-        translated_blocks = translate_page_blocks(blocks_to_translate)
-        
-        for idx, instance in enumerate(valid_instances):
-            x0, y0, x1, y1, text, block_no, block_type = instance[:7]
-            t_text = translated_blocks[idx] if idx < len(translated_blocks) else text
+        for page in doc:
+            text_instances = page.get_text("blocks")
+            blocks_to_translate = []
+            valid_instances = []
             
-            page.add_redact_annot(pymupdf.Rect(x0, y0, x1, y1), fill=(1, 1, 1)) 
-            page.apply_redactions()
-            page.insert_text(pymupdf.Point(x0, y0 + 10), t_text, fontsize=8, color=(0, 0, 0))
+            for instance in text_instances:
+                x0, y0, x1, y1, text, block_no, block_type = instance[:7]
+                if text.strip() and not text.replace(".", "", 1).isdigit():
+                    blocks_to_translate.append(text)
+                    valid_instances.append(instance)
+            
+            if blocks_to_translate:
+                translated_blocks = translate_page_blocks(blocks_to_translate)
                 
-    doc.save(output_path)
-    doc.close()
-    
-    if os.path.exists(input_path):
-        os.remove(input_path)
-    
-    return FileResponse(output_path, media_type="application/pdf", filename=output_path)
+                for idx, instance in enumerate(valid_instances):
+                    x0, y0, x1, y1, text, block_no, block_type = instance[:7]
+                    
+                    if translated_blocks and idx < len(translated_blocks) and translated_blocks[idx].strip():
+                        t_text = translated_blocks[idx]
+                    else:
+                        t_text = text
+                    
+                    page.add_redact_annot(pymupdf.Rect(x0, y0, x1, y1), fill=(1, 1, 1)) 
+                    page.apply_redactions()
+                    page.insert_text(pymupdf.Point(x0, y0 + 10), t_text, fontsize=8, color=(0, 0, 0))
+                    
+        doc.save(output_path)
+        doc.close()
+        
+        return FileResponse(output_path, media_type="application/pdf", filename=output_path)
+        
+    except Exception as error:
+        print(f"Server Runtime Error: {error}")
+        return {"error": str(error)}
+        
+    finally:
+        if os.path.exists(input_path):
+            os.remove(input_path)
