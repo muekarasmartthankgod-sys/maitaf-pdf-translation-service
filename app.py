@@ -8,23 +8,23 @@ st.set_page_config(page_title="MAITAF Customs AI Lab", layout="centered")
 st.title("📄 Customs PDF Translator Lab")
 st.subheader("Targeted Front-End Alignment Control Node")
 
-# --- FRONTEND VISUAL SELECTION CHANNELS ---
+# --- FRONTEND SELECTION CHANNELS ---
 st.markdown("### 🌐 Step 1: Configure Language Logistics Corridor")
 col1, col2 = st.columns(2)
 
 with col1:
     source_lang = st.selectbox(
-        "Translate From (Source Language):",
+        "Translate From (Source Language) :",
         ["Auto-Detect", "French", "English", "Spanish", "German", "Mandarin Chinese", "Arabic", "Portuguese", "Italian", "Dutch"]
     )
 
 with col2:
     target_lang = st.selectbox(
-        "Translate To (Target Destination Language):",
+        "Translate To (Target Destination) :",
         ["English", "French", "Spanish", "German", "Mandarin Chinese", "Arabic", "Portuguese", "Italian", "Dutch"]
     )
 
-# --- SECURE CREDENTIAL ROUTING LAYER ---
+# --- SECURE CREDENTIAL LAYER ---
 api_key = st.secrets.get("GROQ_API_KEY") or os.environ.get("GROQ_API_KEY")
 if api_key:
     api_key = api_key.strip().strip('"').strip("'")
@@ -68,7 +68,7 @@ else:
 
     if uploaded_file is not None:
         if st.button("Run Targeted Precision Translation ➔", use_container_width=True):
-            with st.spinner("Processing text coordinates with midpoint balancing..."):
+            with st.spinner("Processing text coordinates with column width boundaries..."):
                 try:
                     input_bytes = uploaded_file.read()
                     doc = pymupdf.open(stream=input_bytes, filetype="pdf")
@@ -91,13 +91,17 @@ else:
                                 x0, y0, x1, y1, text, block_no, block_type = instance[:7]
                                 t_text = translated_blocks[idx] if translated_blocks and idx < len(translated_blocks) else text
                                 
-                                page.add_redact_annot(pymupdf.Rect(x0, y0, x1, y1), fill=(1, 1, 1)) 
+                                rect = pymupdf.Rect(x0, y0, x1, y1)
+                                page.add_redact_annot(rect, fill=(1, 1, 1)) 
                                 page.apply_redactions()
                                 
-                                # Perfect baseline mid-point calculation matching main.py core algorithm
-                                font_size = 8
-                                center_y = y0 + ((y1 - y0) / 2) + (font_size / 3)
-                                page.insert_text(pymupdf.Point(x0, center_y), t_text, fontsize=font_size, color=(0, 0, 0))
+                                # FIXED: Restrict width boundaries to avoid overlapping table values
+                                if x0 < 300 and x1 > 400:
+                                    render_rect = pymupdf.Rect(x0, y0, 380, y1 + 15)
+                                else:
+                                    render_rect = pymupdf.Rect(x0, y0, x1, y1 + 10)
+                                
+                                page.insert_textbox(render_rect, t_text, fontsize=8, fontname="helv", color=(0, 0, 0))
                     
                     output_bytes = doc.tobytes()
                     doc.close()
