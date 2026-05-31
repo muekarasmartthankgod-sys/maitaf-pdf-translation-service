@@ -1,4 +1,5 @@
 import os
+import json
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,7 +21,6 @@ app.add_middleware(
 GROQ_TOKEN = os.environ.get("GROQ_API_KEY") or os.environ.get("groq_api_key")
 
 if GROQ_TOKEN:
-    # Automatically strip out white spaces or accidental quotes from copy-paste glitches
     GROQ_TOKEN = GROQ_TOKEN.strip().strip('"').strip("'")
 
 client = OpenAI(
@@ -29,40 +29,46 @@ client = OpenAI(
 )
 
 def translate_page_blocks(blocks_list: list) -> list:
-    """Processes textual structures bi-directionally with high-speed LPU pipelines."""
+    """Sends page elements to Groq using strict JSON schema tracking to eliminate alignment drift."""
     if not blocks_list:
         return []
     
-    # Bi-directional trade-optimized system instructions
+    # Construct a clean JSON-stringified map template for the payload
+    input_manifest = {f"block_{i}": text.strip() for i, text in enumerate(blocks_list)}
+    
     prompt_payload = (
-        "You are an expert multilingual international trade, logistics, and customs compliance translator.\n"
-        "Your task is to translate the provided text blocks cleanly while strictly maintaining legal and technical accuracy.\n\n"
-        "DYNAMIC ROUTING RULES:\n"
-        "1. If the text block is in a foreign language (e.g., French, Mandarin, Spanish, German, etc.), translate it into professional standard technical trade English.\n"
-        "2. If the text block is ALREADY in English, translate it into the corresponding target foreign trade language required for the customs zone.\n"
-        "3. Preserve all technical acronyms, HS codes, Incoterms (CIP, FOB, EXW), and numbers exactly.\n\n"
-        "Maintain legal accuracy for shipping terms, product descriptions, tariff headings, and logistics metrics.\n"
-        "Return translations matching the item IDs exactly, separated by '---'.\n"
-        "Do not include any introductions, conclusions, or extra explanations.\n\n"
+        "You are an expert multilingual international trade, logistics, and customs compliance translation engine.\n"
+        "Your sole task is to translate the text values in this JSON object while maintaining strict dictionary structures.\n\n"
+        "TRANSLATION MATRIX RULES:\n"
+        "1. If a value is in a foreign language (French, Spanish, Mandarin, etc.), translate it to technical trade English.\n"
+        "2. If a value is ALREADY in English, translate it into professional standard French (or the designated customs zone language).\n"
+        "3. Maintain all numeric references, HS codes, and Incoterms (FOB, CIP, CIF) exactly.\n"
+        "4. DO NOT alter raw numeric values or standalone digits.\n\n"
+        "CRITICAL: Return ONLY a valid JSON object matching the exact keys provided. No introductory text, no explanations.\n"
+        f"Input Target Objective: {json.dumps(input_manifest, ensure_ascii=False)}"
     )
     
-    for i, text in enumerate(blocks_list):
-        prompt_payload += f"ID {i}: {text.strip()}\n"
-        
     try:
-        # Utilizing Llama-3.1-8b-instant to maximize multi-page token limits safely
+        # Utilizing Llama 3.1 8B with temperature 0.0 for strict, deterministic output matching
         response = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[{"role": "user", "content": prompt_payload}],
-            temperature=0.1
+            temperature=0.0,
+            response_format={"type": "json_object"}  # Forces Groq to return a perfect JSON tree
         )
-        raw_result = response.choices[0].message.content.strip()
         
-        translated_items = [item.replace(f"ID {i}:", "").strip() for i, item in enumerate(raw_result.split("---"))]
-        return translated_items
+        parsed_response = json.loads(response.choices[0].message.content.strip())
+        
+        # Build a safe array output matching the original document sequence order
+        reconstructed_translations = []
+        for i in range(len(blocks_list)):
+            translated_value = parsed_response.get(f"block_{i}", blocks_list[i])
+            reconstructed_translations.append(translated_value)
+            
+        return reconstructed_translations
     except Exception as e:
-        print(f"Llama Groq Operational Error: {e}")
-        return []
+        print(f"Secure Translation Handshake Bypass Triggered: {e}")
+        return blocks_list  # Safe fallback: keeps original text if the API encounters an error
 
 @app.post("/translate-pdf/")
 async def translate_pdf(file: UploadFile = File(...)):
